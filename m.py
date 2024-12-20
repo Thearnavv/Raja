@@ -1,4 +1,3 @@
-
 import asyncio
 import random
 import string
@@ -16,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 MONGO_URI = 'mongodb+srv://Kamisama:Kamisama@kamisama.m6kon.mongodb.net/'
 client = MongoClient(MONGO_URI)
-db = client['bbc']
-users_collection = db['rajaraj_04']
+db = client['rajaji']
+users_collection = db['VAMPIREXCHEATS']
 redeem_codes_collection = db['redeem_codes0']
 
 TELEGRAM_BOT_TOKEN = '7750901619:AAHfLz22hAOyHQf5MYovnwxsdZuy7J5kBGc'
