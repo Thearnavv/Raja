@@ -15,7 +15,7 @@ admin_id = ["7700702349"]
 
 # Group and channel details
 GROUP_ID = "-1002439481052"
-CHANNEL_USERNAME = "https://t.me/+CSRV0N_5QqtjNTM1"
+CHANNEL_USERNAME = "@NUCLEARXCRACKS"
 
 # Default cooldown and attack limits
 COOLDOWN_TIME = 200  # Cooldown in seconds
